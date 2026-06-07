@@ -1,0 +1,17 @@
+# Core inference stack
+# torch>=2.6.0 is required by transformers for non-safetensors checkpoints
+# (CVE-2025-32434 patch). Most multilingual DeBERTa models ship .bin only.
+torch>=2.6.0
+transformers>=4.45.0
+tokenizers>=0.20.0
+sentencepiece>=0.2.0
+
+# protobuf — required by SentencePiece-based tokenizers (DeBERTa, T5, etc.).
+protobuf>=3.20.0
+
+# Numerics + I/O
+numpy>=1.26.0
+tqdm>=4.66.0
+
+# Google Drive downloads (for fetching pre-trained weights)
+gdown>=5.0.0
