@@ -46,16 +46,31 @@ def download_from_gdrive(url_or_id: str, output: Path) -> None:
 	  - Full sharing URL (``https://drive.google.com/file/d/FILE_ID/view?...``)
 	  - Open-file URL (``https://drive.google.com/open?id=FILE_ID``)
 	  - Bare file ID
+
+	gdown 4.x and 5.x have slightly different APIs:
+	  - 4.x needs ``fuzzy=True`` to accept various URL formats
+	  - 5.x removed ``fuzzy`` (the behavior is now default)
+	We try the 5.x signature first, fall back to 4.x.
 	"""
 	output.parent.mkdir(parents=True, exist_ok=True)
 
-	# gdown's fuzzy=True accepts many URL forms.
-	if "drive.google.com" in url_or_id or url_or_id.startswith("http"):
-		result = gdown.download(
-			url=url_or_id, output=str(output), quiet=False, fuzzy=True,
+	is_url = "drive.google.com" in url_or_id or url_or_id.startswith("http")
+
+	def _download(**extra):
+		if is_url:
+			return gdown.download(
+				url=url_or_id, output=str(output), quiet=False, **extra,
+			)
+		return gdown.download(
+			id=url_or_id, output=str(output), quiet=False, **extra,
 		)
-	else:
-		result = gdown.download(id=url_or_id, output=str(output), quiet=False)
+
+	try:
+		# gdown 5.x: no fuzzy kwarg
+		result = _download()
+	except TypeError:
+		# gdown 4.x: needs fuzzy=True to accept the sharing-URL format
+		result = _download(fuzzy=True)
 
 	if result is None or not output.exists():
 		print(
