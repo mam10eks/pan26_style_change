@@ -30,13 +30,15 @@ from pan26_predict  import run_prediction
 # Training-time mappings. Must match the values used during training.
 # ───────────────────────────────────────────────────────────────────────
 
-LANGUAGE_TO_ID = {
-	"de": 0, "en": 1, "es": 2, "fr": 3, "id": 4,
-	"it": 5, "nl": 6, "pt": 7, "diff": 8,
-}
-DOMAIN_TO_ID = {
-	"easy": 0, "fanfic": 1, "hard": 2, "medium": 3, "wiki": 4,
-}
+# LANGUAGE_TO_ID = {
+# 	"de": 0, "en": 1, "es": 2, "fr": 3, "id": 4,
+# 	"it": 5, "nl": 6, "pt": 7, "diff": 8,
+# }
+# DOMAIN_TO_ID = {
+# 	"easy": 0, "fanfic": 1, "hard": 2, "medium": 3, "wiki": 4,
+# }
+DOMAIN_TO_ID = {'easy': 0, 'fanfic': 1, 'hard': 2, 'medium': 3, 'wiki': 4}
+LANGUAGE_TO_ID =  {'en': 0, 'diff': 1}
 
 
 # ───────────────────────────────────────────────────────────────────────

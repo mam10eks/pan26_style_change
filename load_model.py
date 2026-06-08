@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 """
-Construct the trained AVClassifier inside the Docker container.
+Construct the trained AVClassifier and load its weights.
 
-The backbone weights are loaded from the HuggingFace cache (mounted
-into the container by TIRA via --mount-hf-model). The custom head and
-conditioning embeddings come from a state_dict bundled in the image.
-
-If the bundled checkpoint contains the full state dict (including
-backbone), it overrides the HF-loaded backbone weights — that's fine,
-the backbone is reloaded into the model regardless. If it contains
-only the trainable subset (top layers + head + conditioning), the
-frozen backbone layers stay at their HF-pretrained values.
+The backbone (HuggingFace) is downloaded on first use into the standard
+HF cache (``~/.cache/huggingface``). The custom head + conditioning
+embeddings come from a state_dict downloaded separately via
+``download_weights.py`` from a Google Drive link supplied by the repo
+owner.
 """
 
 from __future__ import annotations
@@ -29,14 +25,16 @@ from av_classifier import AVClassifier
 # Configuration — must match training-time values.
 # ───────────────────────────────────────────────────────────────────────
 
-# Backbone HF identifier. Mounted into the container via --mount-hf-model.
+# Backbone HF identifier. Override via the BACKBONE_HF_NAME environment
+# variable. Default matches the model used to train the bundled weights.
 BACKBONE_HF_NAME = os.environ.get(
 	"BACKBONE_HF_NAME", "microsoft/deberta-v3-large"
 )
 
-# Path inside the container where the trained state_dict is bundled.
+# Path to the trained state_dict. Default is repo-relative; override via
+# CHECKPOINT_PATH if the weights live elsewhere.
 CHECKPOINT_PATH = Path(os.environ.get(
-	"CHECKPOINT_PATH", "/opt/model/av_classifier.pt"
+	"CHECKPOINT_PATH", "weights/av_classifier.pt"
 ))
 
 # Architecture hyperparameters — must match the training-time AVClassifier.
@@ -60,7 +58,6 @@ ARCH_CONFIG = dict(
 )
 
 
-
 def load_av_classifier(device: torch.device | None = None):
 	"""Build the AVClassifier, load its trained weights, return (model, tokenizer)."""
 	if device is None:
@@ -68,19 +65,24 @@ def load_av_classifier(device: torch.device | None = None):
 
 	if not CHECKPOINT_PATH.exists():
 		raise FileNotFoundError(
-			f"Trained checkpoint not found at {CHECKPOINT_PATH}. "
-			f"Set CHECKPOINT_PATH env var or copy the file to that location."
+			f"Trained checkpoint not found at: {CHECKPOINT_PATH}\n"
+			f"\n"
+			f"To download from Google Drive, run:\n"
+			f"    python download_weights.py --url <GOOGLE_DRIVE_LINK>\n"
+			f"\n"
+			f"Or set CHECKPOINT_PATH to an existing file:\n"
+			f"    CHECKPOINT_PATH=/path/to/weights.pt python pan26_runner.py ...\n"
 		)
 
-	# Load tokenizer + backbone from the HuggingFace cache (no internet).
+	# Load tokenizer + backbone. First use will download from HuggingFace
+	# (~280 MB for mdeberta-v3-base, ~720 MB for deberta-v3-large) and
+	# cache under ~/.cache/huggingface for subsequent runs.
 	# dtype is set explicitly to FP32 to avoid the partial-FP16 mismatch
 	# with the trainable head we ran into during training. The parameter
 	# was renamed from `torch_dtype` to `dtype` in transformers 4.46;
-	# we fall back to the old name for older versions.
-	# fix_mistral_regex=True silences a misleading warning that fires for
-	# many tokenizers (DeBERTa-v3 included) but only actually matters for
-	# Mistral's BPE regex pre-tokenization — DeBERTa uses SentencePiece,
-	# so the flag is a no-op here. Tolerated cross-version via try/except.
+	# fix_mistral_regex=True silences a misleading warning that fires
+	# for SentencePiece tokenizers (where the Mistral BPE bug doesn't
+	# apply). Both flags are wrapped in try/except for cross-version use.
 	try:
 		tokenizer = AutoTokenizer.from_pretrained(
 			BACKBONE_HF_NAME, use_fast=True, fix_mistral_regex=True,
@@ -93,9 +95,8 @@ def load_av_classifier(device: torch.device | None = None):
 		backbone = AutoModel.from_pretrained(BACKBONE_HF_NAME, torch_dtype=torch.float32)
 
 	# Fix up tokenizer-side IDs that some configs leave unset. DebertaV2Config
-	# doesn't even declare sep_token_id / cls_token_id as Python attributes
-	# (direct access raises AttributeError, not returns None), so we use
-	# getattr with a default and setattr to assign. Matches validate_model.py.
+	# doesn't declare sep_token_id / cls_token_id as Python attributes
+	# (direct access raises), so we use getattr with a default.
 	for attr in ("sep_token_id", "cls_token_id", "eos_token_id"):
 		if getattr(backbone.config, attr, None) is None:
 			tok_val = getattr(tokenizer, attr, None)
@@ -110,19 +111,30 @@ def load_av_classifier(device: torch.device | None = None):
 	state = torch.load(CHECKPOINT_PATH, map_location="cpu")
 	result = model.load_state_dict(state, strict=False)
 
-	# Sanity check: complain if there are *unexpected* keys (real bug),
-	# but missing keys are tolerated (they correspond to the frozen
-	# backbone params that came from HF in the first place).
+	# Sanity check: warn on unexpected keys (real bug if same arch as training,
+	# expected if backbone was swapped). Missing keys are tolerated — they
+	# correspond to frozen backbone params loaded from HF cache.
 	if result.unexpected_keys:
 		print(
 			f"WARNING: {len(result.unexpected_keys)} unexpected keys in "
 			f"checkpoint (first 5: {result.unexpected_keys[:5]}). "
-			f"These will be ignored."
+			f"These will be ignored. This is expected if the backbone was "
+			f"changed since training; investigate otherwise."
 		)
+	non_backbone_missing = [
+		k for k in result.missing_keys if not k.startswith("backbone.")
+	]
+	if non_backbone_missing:
+		print(
+			f"WARNING: {len(non_backbone_missing)} non-backbone parameters "
+			f"missing from checkpoint (first 5: {non_backbone_missing[:5]}). "
+			f"These will use random initialization."
+		)
+
+	n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
 	print(
 		f"Loaded checkpoint from {CHECKPOINT_PATH}. "
-		f"Trainable params in optimizer: "
-		f"{sum(p.numel() for p in model.parameters() if p.requires_grad):,}"
+		f"Trainable params: {n_trainable:,}"
 	)
 
 	model.to(device).eval()

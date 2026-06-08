@@ -18,20 +18,43 @@ python -m venv venv
 source venv/bin/activate           # Linux / macOS
 # .\venv\Scripts\Activate.ps1      # Windows PowerShell
 
-# 3. Install dependencies
+# 3. Install dependencies (includes PyTorch with CUDA support — see notes)
 pip install -r requirements.txt
 
-# 4. Download trained model weights from Google Drive
+# 4. Verify CUDA is working (skip if you're running CPU-only):
+python check_cuda.py
+
+# 5. Download trained model weights from Google Drive
 #    (URL provided separately by the repository owner)
 python download_weights.py --url "<GOOGLE_DRIVE_LINK>"
 
-# 5. Run inference on PAN-format input
+# 6. Run inference on PAN-format input
 python pan26_runner.py -i /path/to/input -o /path/to/output
 ```
 
 The first inference run downloads the DeBERTa-v3 backbone from HuggingFace
 (~280 MB for base, ~720 MB for large) and caches it under
 `~/.cache/huggingface/`. Subsequent runs use the cache.
+
+### CUDA version selection
+
+`requirements.txt` defaults to **CUDA 12.6** wheels (`cu126`), which work
+on most modern NVIDIA GPUs (Ampere, Ada Lovelace). To change:
+
+- **Blackwell GPUs** (RTX Pro 6000, RTX 5090, etc.) → edit the
+  `--extra-index-url` line in `requirements.txt` to use `cu128`.
+- **Older drivers** (CUDA 11.x) → use `cu118`.
+- **CPU-only** (no GPU) → change to `https://download.pytorch.org/whl/cpu`.
+
+Check your driver's CUDA version with `nvidia-smi` (top-right corner).
+
+If `check_cuda.py` reports CPU-only PyTorch despite having a GPU,
+reinstall torch explicitly:
+
+```bash
+pip uninstall -y torch
+pip install torch --index-url https://download.pytorch.org/whl/cu126
+```
 
 ## Repository layout
 
@@ -42,6 +65,7 @@ The first inference run downloads the DeBERTa-v3 backbone from HuggingFace
 | `load_model.py` | Constructs the `AVClassifier` and loads weights |
 | `av_classifier.py` | Model architecture (must be filled in — see below) |
 | `download_weights.py` | Downloads the trained weights from Google Drive |
+| `check_cuda.py` | Verifies PyTorch was installed with CUDA support |
 | `requirements.txt` | Python dependencies |
 
 ## Before first use: provide `av_classifier.py`

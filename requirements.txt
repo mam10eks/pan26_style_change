@@ -1,6 +1,27 @@
+# ─────────────────────────────────────────────────────────────────────────
+# PyTorch with CUDA support
+# ─────────────────────────────────────────────────────────────────────────
+# `pip install torch` from PyPI defaults to a CPU-only build. To get the
+# CUDA-enabled wheel, we point pip at PyTorch's custom wheel index in
+# addition to PyPI. Pip picks the right wheel for the platform.
+#
+# CUDA version selection — match your NVIDIA driver:
+#   - cu126 (CUDA 12.6, recommended default — supports Ada Lovelace,
+#           Ampere, and most modern GPUs).
+#   - cu128 (CUDA 12.8 — required for Blackwell GPUs e.g. RTX Pro 6000,
+#           RTX 5090). Change the URL below if needed.
+#   - cu118 (CUDA 11.8 — for older drivers).
+#   - cpu (no GPU — replace the index URL with .../whl/cpu).
+#
+# To check your driver's CUDA support:  nvidia-smi
+# Use the value shown as "CUDA Version" in the top-right corner.
+# ─────────────────────────────────────────────────────────────────────────
+
+--extra-index-url https://download.pytorch.org/whl/cu126
+
 # Core inference stack
 # torch>=2.6.0 is required by transformers for non-safetensors checkpoints
-# (CVE-2025-32434 patch). Most multilingual DeBERTa models ship .bin only.
+# (CVE-2025-32434 patch). DeBERTa models ship .bin only.
 torch>=2.6.0
 transformers>=4.45.0
 tokenizers>=0.20.0
