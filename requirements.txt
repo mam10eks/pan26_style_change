@@ -20,7 +20,7 @@
 # Core inference stack
 # torch>=2.6.0 is required by transformers for non-safetensors checkpoints
 # (CVE-2025-32434 patch). DeBERTa models ship .bin only.
-transformers[torch]>=4.45.0
+transformers[torch]==4.45.0
 tokenizers>=0.20.0
 sentencepiece>=0.2.0
 
@@ -28,6 +28,6 @@ sentencepiece>=0.2.0
 protobuf>=3.20.0
 
 # Numerics + I/O
-numpy>=1.26.0
+numpy==1.26.0
 tqdm>=4.66.0
 
