@@ -199,6 +199,12 @@ just slower:
 - mDeBERTa-v3-base on 1000 problems: ~5 min on A100, ~45 min on CPU
 - DeBERTa-v3-large on 1000 problems: ~12 min on A100, ~2 hr on CPU
 
+## Submission to TIRA
+
+```bash
+tira-cli --dry-run code-submission --path . --task multi-author-writing-style-analysis-2026 --dataset smoketest-20260330-training --command 'python3 pan26_runner.py -i $inputDataset -o $outputDir' --mount-hf-model microsoft/deberta-v3-large
+```
+
 ## Citation
 
 If you use this code, please cite our paper:
